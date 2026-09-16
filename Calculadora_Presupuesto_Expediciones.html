@@ -122,6 +122,17 @@
   }
   .field input:focus{outline:none; border-color:var(--ice);}
   .field.narrow input{width:74px;}
+  .computed-badge{
+    width:74px; background:var(--ice-light); border:1px solid var(--ice); border-radius:3px; padding:6px 8px;
+    font-size:13px; font-family:var(--mono); color:var(--basalt); text-align:center; font-weight:600;
+  }
+  .tramos-row{margin-top:6px;}
+  .tramos-row label{display:block; font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--stone); margin-bottom:3px;}
+  .tramos-input{
+    width:100%; background:var(--paper-2); border:1px solid var(--stone-light); border-radius:3px; padding:7px 9px;
+    font-size:12.5px; color:var(--ink); font-family:var(--mono);
+  }
+  .tramos-input:focus{outline:none; border-color:var(--ice);}
 
   .item-total-col{text-align:right; min-width:110px;}
   .item-total-col .tot{font-family:var(--mono); font-size:14px; font-weight:600;}
@@ -339,17 +350,17 @@ function defaultState(){
     contingenciaMinPP: 50000,
     esenciales: [
       { id:newId(), nombre:"Transporte", items:[
-        { id:newId(), cod:"1.1", det:"Combustible – Ida", nota:"Se estima 10 km por litro de nafta, con 2 vehículos (hasta 4 pasajeros cada uno).", mode:"combustible", distancia:1438, rendimiento:10, precioLitro:2200, vehiculos:2 },
-        { id:newId(), cod:"1.2", det:"Combustible – Vuelta", nota:"Misma estimación que la ida.", mode:"combustible", distancia:1438, rendimiento:10, precioLitro:2200, vehiculos:2 },
+        { id:newId(), cod:"1.1", det:"Combustible – Ida", nota:"Se estima 10 km por litro de nafta. Un vehículo cada 4 personas.", mode:"combustible", distancia:1438, rendimiento:10, precioLitro:2200, personasPorVehiculo:4 },
+        { id:newId(), cod:"1.2", det:"Combustible – Vuelta", nota:"Misma estimación que la ida.", mode:"combustible", distancia:1438, rendimiento:10, precioLitro:2200, personasPorVehiculo:4 },
         { id:newId(), cod:"1.3", det:"Peajes", nota:"No hay peajes en la ruta seleccionada.", mode:"simple", cantidad:1, precioUnit:0 },
       ]},
       { id:newId(), nombre:"Alojamiento", items:[
-        { id:newId(), cod:"2.1", det:"Noche de ida en Zapala", nota:"Habitación para 4 personas; hasta 6 el costo se ajusta.", mode:"simple", cantidad:1, precioUnit:120000 },
-        { id:newId(), cod:"2.2", det:"Noche de vuelta en Chos Malal", nota:"Departamento para 4 personas; mercado entre $95.000 y $200.000.", mode:"simple", cantidad:1, precioUnit:175000 },
-        { id:newId(), cod:"2.3", det:"Noche de vuelta en Tres Arroyos", nota:"Departamento para 4 personas; mercado entre $50.000 y $150.000.", mode:"simple", cantidad:1, precioUnit:130000 },
+        { id:newId(), cod:"2.1", det:"Noche de ida en Zapala", nota:"Habitación en CIRSE. Tarifa según cantidad de personas — editable en \"Tramos\".", mode:"porPersonas", tramos:[{hasta:1,precio:40000},{hasta:2,precio:50000},{hasta:3,precio:60000},{hasta:4,precio:70000},{hasta:5,precio:110000},{hasta:6,precio:120000},{hasta:7,precio:130000},{hasta:8,precio:140000}] },
+        { id:newId(), cod:"2.2", det:"Noche de vuelta en Chos Malal", nota:"Departamento en Chos-Malal. Tarifa según cantidad de personas.", mode:"porPersonas", tramos:[{hasta:1,precio:95000},{hasta:2,precio:95000},{hasta:3,precio:120000},{hasta:4,precio:150000},{hasta:5,precio:150000},{hasta:6,precio:175000},{hasta:7,precio:200000},{hasta:8,precio:200000}] },
+        { id:newId(), cod:"2.3", det:"Noche de vuelta en Bahía Blanca", nota:"Cambio de plan: antes era Tres Arroyos. Se mantuvieron los mismos tramos de precio como estimación — ajustar si tenés la tarifa real de Bahía Blanca.", mode:"porPersonas", tramos:[{hasta:1,precio:50000},{hasta:2,precio:75000},{hasta:3,precio:75000},{hasta:4,precio:75000},{hasta:5,precio:120000},{hasta:6,precio:130000},{hasta:7,precio:150000},{hasta:8,precio:150000}] },
       ]},
       { id:newId(), nombre:"Alimentación", items:[
-        { id:newId(), cod:"3.1", det:"Comida en viaje/ruta – días 1 y 5", nota:"Valor promedio comiendo al paso en una estación de servicio, ida y vuelta.", mode:"simple", cantidad:2, precioUnit:84000 },
+        { id:newId(), cod:"3.1", det:"Comida en viaje/ruta – días 1 y 5", nota:"Promedio $14.000 por persona comiendo al paso en una estación de servicio — 6 personas, 2 paradas (ida y regreso).", mode:"simple", cantidad:2, precioUnit:84000 },
         { id:newId(), cod:"3.2", det:"Almuerzo día 2 – Sándwich", nota:null, mode:"simple", cantidad:1, precioUnit:36000 },
         { id:newId(), cod:"3.2", det:"Cena día 2 – Fideos con salsa", nota:null, mode:"simple", cantidad:1, precioUnit:18000 },
         { id:newId(), cod:"3.2", det:"Almuerzo días 3 y 4 – Atún, queso, pan, salamín, tomate", nota:"Mismo menú los dos días.", mode:"simple", cantidad:2, precioUnit:24000 },
@@ -428,10 +439,32 @@ const CAT_COLORS = ["#4F86A0","#6FA1B7","#C1602E","#8B8377","#7C9B6E","#A5764F",
 // ============================================================
 const fmt = n => "$" + Math.round(n||0).toLocaleString("es-AR");
 
+function vehiculosFor(item){
+  return Math.ceil((state.integrantes||1) / (item.personasPorVehiculo||4));
+}
+function lookupTramos(tramos, personas){
+  if(!tramos || !tramos.length) return 0;
+  const sorted = [...tramos].sort((a,b)=>a.hasta-b.hasta);
+  for(const t of sorted){ if(personas<=t.hasta) return t.precio; }
+  return sorted[sorted.length-1].precio; // más allá del último tramo: se mantiene el precio más alto
+}
+function parseTramos(str){
+  return (str||"").split(",").map(s=>s.trim()).filter(Boolean).map(pair=>{
+    const [h,p] = pair.split(":").map(x=>parseFloat((x||"").trim()));
+    return {hasta:h||0, precio:p||0};
+  }).filter(t=>t.hasta>0);
+}
+function stringifyTramos(tramos){
+  return (tramos||[]).map(t=>`${t.hasta}:${t.precio}`).join(",");
+}
+
 function itemTotal(item){
   if(item.mode === "combustible"){
     const rend = item.rendimiento || 1;
-    return (item.distancia||0) / rend * (item.precioLitro||0) * (item.vehiculos||1);
+    return (item.distancia||0) / rend * (item.precioLitro||0) * vehiculosFor(item);
+  }
+  if(item.mode === "porPersonas"){
+    return lookupTramos(item.tramos, state.integrantes||1);
   }
   return (item.cantidad||0) * (item.precioUnit||0);
 }
@@ -471,6 +504,7 @@ function recalcAll(){
     cat.items.forEach(it => {
       setText("it-"+it.id, fmt(itemTotal(it)));
       setText("ipp-"+it.id, fmt(itemTotal(it)/(state.integrantes||1)) + " x pers.");
+      if(it.mode === "combustible") setText("veh-"+it.id, vehiculosFor(it));
     });
   });
   const contCatEl = document.getElementById("contingenciaTotalDisplay");
@@ -498,8 +532,12 @@ function fieldsForItem(item){
       <div class="field narrow"><label>Distancia (km, ida)</label><input type="number" value="${item.distancia}" data-f="distancia"></div>
       <div class="field narrow"><label>Rendim. (km/L)</label><input type="number" value="${item.rendimiento}" data-f="rendimiento"></div>
       <div class="field narrow"><label>Precio nafta (L)</label><input type="number" value="${item.precioLitro}" data-f="precioLitro"></div>
-      <div class="field narrow"><label>Vehículos</label><input type="number" value="${item.vehiculos||1}" data-f="vehiculos"></div>
+      <div class="field narrow"><label>Personas/vehículo</label><input type="number" value="${item.personasPorVehiculo||4}" data-f="personasPorVehiculo"></div>
+      <div class="field narrow"><label>Vehículos (auto)</label><div class="computed-badge" id="veh-${item.id}">${vehiculosFor(item)}</div></div>
     `;
+  }
+  if(item.mode === "porPersonas"){
+    return "";
   }
   return `
     <div class="field narrow"><label>Cantidad</label><input type="number" value="${item.cantidad}" data-f="cantidad"></div>
@@ -531,7 +569,8 @@ function renderEssList(){
           <button class="add-btn" data-role="additem">+ Agregar ítem</button>
           <select class="mode-select" data-role="newmode" style="margin-left:8px;">
             <option value="simple">Cantidad × precio</option>
-            <option value="combustible">Combustible (km / rendimiento / precio)</option>
+            <option value="combustible">Combustible (km / rendimiento / precio / vehículos)</option>
+            <option value="porPersonas">Precio según cantidad de personas (tramos)</option>
           </select>
         </div>
       </div>
@@ -549,9 +588,10 @@ function renderEssList(){
     });
     card.querySelector('[data-role="additem"]').addEventListener("click", ()=>{
       const mode = card.querySelector('[data-role="newmode"]').value;
-      const item = mode==="combustible"
-        ? { id:newId(), cod:"", det:"Nuevo ítem", nota:null, mode:"combustible", distancia:0, rendimiento:10, precioLitro:0, vehiculos:1 }
-        : { id:newId(), cod:"", det:"Nuevo ítem", nota:null, mode:"simple", cantidad:1, precioUnit:0 };
+      let item;
+      if(mode==="combustible") item = { id:newId(), cod:"", det:"Nuevo ítem", nota:null, mode:"combustible", distancia:0, rendimiento:10, precioLitro:0, personasPorVehiculo:4 };
+      else if(mode==="porPersonas") item = { id:newId(), cod:"", det:"Nuevo ítem", nota:null, mode:"porPersonas", tramos:[{hasta:4,precio:0},{hasta:8,precio:0}] };
+      else item = { id:newId(), cod:"", det:"Nuevo ítem", nota:null, mode:"simple", cantidad:1, precioUnit:0 };
       cat.items.push(item);
       renderEssList(); recalcAll();
       card.classList.add("open");
@@ -566,10 +606,15 @@ function renderEssItemRow(cat, item){
   const row = document.createElement("div");
   row.className = "item-row";
   row.dataset.itemId = item.id;
+  const isTramos = item.mode === "porPersonas";
   row.innerHTML = `
     <div class="col-main">
       <input class="item-name" value="${item.det}" data-role="name">
       <input class="item-note" placeholder="Agregar nota / justificación…" value="${item.nota||""}" data-role="note">
+      ${isTramos ? `<div class="tramos-row">
+        <label>Precio según cantidad de personas — formato "personas:precio", separados por coma</label>
+        <input type="text" class="tramos-input" value="${stringifyTramos(item.tramos)}" data-role="tramos">
+      </div>` : ``}
     </div>
     <div class="fields">${fieldsForItem(item)}</div>
     <div class="item-total-col">
@@ -586,6 +631,12 @@ function renderEssItemRow(cat, item){
       recalcAll();
     });
   });
+  if(isTramos){
+    row.querySelector('[data-role="tramos"]').addEventListener("input", e=>{
+      item.tramos = parseTramos(e.target.value);
+      recalcAll();
+    });
+  }
   row.querySelector('[data-role="delitem"]').addEventListener("click", ()=>{
     cat.items = cat.items.filter(i=>i.id!==item.id);
     renderEssList(); recalcAll();
